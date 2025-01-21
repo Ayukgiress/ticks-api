@@ -1,41 +1,85 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+import createError from 'http-errors';  
+import express from 'express';  
+import path from 'path';  
+import cookieParser from 'cookie-parser';  
+import logger from 'morgan';  
+import connectDB from './config/dbconfig.js';
+import cors from 'cors';  
+import dotenv from 'dotenv';
+import passport from 'passport';
+import session from 'express-session';
+import initializePassport from './passport-setup.js';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
 
-var app = express();
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+const app = express();
+
+
+
+
+dotenv.config();   
+
+const port = process.env.PORT || 5000; 
 
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use(express.static(path.join(path.resolve(), 'public')));
 
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+app.use(cors({
+  origin: '*', 
+  methods: ['GET', 'POST', "DELETE", "PUT", "PATCH"],
+  credentials: true
+}));
+
+app.get('/', (req, res) => {
+  res.send('Welcome to the Fitness Tracker API!');
 });
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+import usersRouter from './routes/users.js';  
+// import contestRouter from './routes/contests.js';
+// import voteRoute from './routes/vote.js'
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
+app.use('/users', usersRouter); 
+// app.use('/contests', contestRouter);
+// app.use('./vote', voteRoute)
+
+connectDB();
+
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  })
+);
+
+// Initialize Passport
+initializePassport(app);
+
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`, req.body);
+  next();
 });
 
-module.exports = app;
+app.use((err, req, res, next) => {  
+  console.error('Error details:', err); 
+  res.status(err.status || 500).json({  
+    error: {  
+      message: err.message,  
+      status: err.status || 500,  
+    },  
+  });  
+});
+
+app.listen(port, () => console.log(`Server started on port ${port}`));  
+
+export default app;
