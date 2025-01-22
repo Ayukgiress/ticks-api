@@ -232,7 +232,7 @@ router.get('/google/callback', (req, res, next) => {
     }
 
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_user`);
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
     }
 
     try {
@@ -242,13 +242,15 @@ router.get('/google/callback', (req, res, next) => {
         { expiresIn: '7d' }
       );
 
-      res.redirect(`${process.env.FRONTEND_URL}/oauth-callback?token=${token}`);
+      return res.redirect(`${process.env.FRONTEND_URL}/oauth-callback?token=${encodeURIComponent(token)}`);
     } catch (error) {
       console.error('Token creation error:', error);
       return res.redirect(`${process.env.FRONTEND_URL}/login?error=token_creation_failed`);
     }
   })(req, res, next);
 });
+
+
 
 router.get("/profile", auth, async (req, res, next) => {
   try {
