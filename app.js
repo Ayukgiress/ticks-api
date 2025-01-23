@@ -41,11 +41,11 @@ app.get('/', (req, res) => {
 });
 
 import usersRouter from './routes/users.js';  
-// import contestRouter from './routes/contests.js';
+import todoRoute from './routes/todos.js'
 // import voteRoute from './routes/vote.js'
 
 app.use('/users', usersRouter); 
-// app.use('/contests', contestRouter);
+app.use('/todos', todoRoute);
 // app.use('./vote', voteRoute)
 
 connectDB();
@@ -57,12 +57,11 @@ app.use(
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000 
     }
   })
 );
 
-// Initialize Passport
 initializePassport(app);
 
 app.use((req, res, next) => {
