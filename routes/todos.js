@@ -17,8 +17,10 @@ const sendEmailNotification = async (email, todo) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: 'You have been assigned a new task',
-    text: `You have been assigned a new task: ${todo.title}. View it here: http://localhoost:5000/todos/${todo._id}`,
+    subject: 'You have been assigned a todo',
+    text: `You have been assigned a new task: ${todo.title}. View it here: https://uptrack-phi.vercel.app/todos/${todo._id}`,
+    html: `<p>You have been assigned a new task: <strong>${todo.title}</strong>.</p>
+           <p><a href="https://uptrack-phi.vercel.app/todos/${todo._id}">View it here</a></p>`, 
   };
 
   await transporter.sendMail(mailOptions);
@@ -26,17 +28,47 @@ const sendEmailNotification = async (email, todo) => {
 
 router.get("/api/todos/:userId", auth, async (req, res) => {
   try {
-    const { userId } = req.params;  
-    const authenticatedUserId = req.user.id;  
+    const { userId } = req.params;
+    const authenticatedUserId = req.user.id;
 
     if (authenticatedUserId !== userId) {
       return res.status(401).json({ error: "Unauthorized access" });
     }
 
-    const todos = await Todo.find({ userId }).sort({ createdAt: -1 });
+    const todos = await Todo.find({
+      $or: [
+        { userId },
+        { assignedTo: authenticatedUserId }
+      ]
+    }).sort({ createdAt: -1 });
+
     res.status(200).json(todos);
   } catch (err) {
     console.error("Error fetching todos:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/api/todos/detail/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const authenticatedUserId = req.user.id;
+
+    const todo = await Todo.findOne({
+      _id: id,
+      $or: [
+        { userId: authenticatedUserId },
+        { assignedTo: authenticatedUserId }
+      ]
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found or unauthorized" });
+    }
+
+    res.status(200).json(todo);
+  } catch (err) {
+    console.error("Error fetching todo detail:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -63,6 +95,7 @@ router.post("/api/todos", auth, async (req, res) => {
   }
 });
 
+
 router.put("/api/todos/:id", auth, async (req, res) => {
   try {
     const { id } = req.params; 
@@ -82,6 +115,22 @@ router.put("/api/todos/:id", auth, async (req, res) => {
   } catch (err) {
     console.error("Error updating todo:", err);
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.put("/api/todos/edit/:id", async (req, res) => {
+  const { id } = req.params;
+  const { title, description } = req.body;
+
+  try {
+    const updatedTodo = await Todo.findByIdAndUpdate(id, { title, description }, { new: true });
+    if (!updatedTodo) {
+      return res.status(404).json({ message: "Todo not found" });
+    }
+    res.json(updatedTodo);
+  } catch (error) {
+    console.error("Error updating todo:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
