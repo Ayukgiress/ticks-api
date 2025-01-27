@@ -75,6 +75,38 @@ router.get("/api/todos/supervisor/:id", async (req, res) => {
   }
 });
 
+// Add new endpoint for supervisor to update todo status
+router.put("/api/todos/supervisor/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.query;
+    const updates = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Supervisor email is required" });
+    }
+
+    // Find and update the todo, ensuring it's assigned to the correct supervisor
+    const updatedTodo = await Todo.findOneAndUpdate(
+      {
+        _id: id,
+        assignedTo: email
+      },
+      updates,
+      { new: true }
+    );
+
+    if (!updatedTodo) {
+      return res.status(404).json({ error: "Todo not found or unauthorized" });
+    }
+
+    res.status(200).json(updatedTodo);
+  } catch (err) {
+    console.error("Error updating todo:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.get("/api/todos/detail/:id", auth, async (req, res) => {
   try {
