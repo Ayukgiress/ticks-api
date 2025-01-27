@@ -18,9 +18,9 @@ const sendEmailNotification = async (email, todo) => {
     from: process.env.EMAIL_USER,
     to: email,
     subject: 'You have been assigned a todo',
-    text: `You have been assigned a new task: ${todo.title}. View it here: https://uptrack-phi.vercel.app/todos/${todo._id}`,
+    text: `You have been assigned a new task: ${todo.title}. View it here: https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}`,
     html: `<p>You have been assigned a new task: <strong>${todo.title}</strong>.</p>
-           <p><a href="https://uptrack-phi.vercel.app/todos/${todo._id}">View it here</a></p>`, 
+           <p><a href="https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}">View it here</a></p>`,
   };
 
   await transporter.sendMail(mailOptions);
@@ -48,6 +48,33 @@ router.get("/api/todos/:userId", auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+router.get("/api/todos/supervisor/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ error: "Supervisor email is required" });
+    }
+
+    const todo = await Todo.findOne({
+      _id: id,
+      assignedTo: email
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found or unauthorized" });
+    }
+
+    const { __v, ...safeData } = todo.toObject();
+    res.status(200).json(safeData);
+  } catch (err) {
+    console.error("Error fetching todo:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 router.get("/api/todos/detail/:id", auth, async (req, res) => {
   try {
