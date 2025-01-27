@@ -21,203 +21,208 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-router.post("/register", registerValidator, async (req, res, next) => {
+router.post("/register", registerValidator, (req, res, next) => {
   const { username, email, password } = req.body;
 
-  try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ msg: "User already exists" });
-    }
+  User.findOne({ email })
+    .then(existingUser => {
+      if (existingUser) {
+        return res.status(400).json({ msg: "User already exists" });
+      }
 
-    const verificationToken = crypto.randomBytes(20).toString("hex");
-    const verificationTokenExpires = Date.now() + 3600000;
+      const verificationToken = crypto.randomBytes(20).toString("hex");
+      const verificationTokenExpires = Date.now() + 3600000;
 
-    const user = new User({
-      username,
-      email,
-      password,
-      verificationToken,
-      verificationTokenExpires,
-    });
-
-    await user.save();
-
-    const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
-
-    await transporter.sendMail({
-      to: user.email,
-      subject: "Email Verification",
-      html: `<h2>Email Verification</h2>
-             <p>Please click the link below to verify your email:</p>
-             <p><a href="${verificationUrl}">Verify Email</a></p>`,
-    });
-
-    res.status(201).json({
-      msg: "Registration successful! Please check your email to verify your account.",
-    });
-  } catch (err) {
-    console.error(err);
-    next(err); 
-  }
-});
-
-router.post('/verify-email/:token', async (req, res, next) => {
-  try {
-    const { token } = req.params;
-
-    const user = await User.findOne({
-      verificationToken: token,
-      verificationTokenExpires: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification token.',
+      const user = new User({
+        username,
+        email,
+        password,
+        verificationToken,
+        verificationTokenExpires,
       });
-    }
 
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpires = undefined;
-    await user.save();
+      return user.save().then(() => {
+        const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
 
-    const payload = { user: { id: user.id } };
-    const jwtToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-    res.status(200).json({
-      success: true,
-      message: 'Email verified successfully!',
-      token: jwtToken,
+        return transporter.sendMail({
+          to: user.email,
+          subject: "Email Verification",
+          html: `<h2>Email Verification</h2>
+                 <p>Please click the link below to verify your email:</p>
+                 <p><a href="${verificationUrl}">Verify Email</a></p>`,
+        });
+      })
+      .then(() => {
+        res.status(201).json({
+          msg: "Registration successful! Please check your email to verify your account.",
+        });
+      })
+      .catch(err => {
+        console.error(err);
+        next(err);
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      next(err);
     });
-  } catch (error) {
-    console.error('Verification error:', error);
-    next(error); 
-  }
 });
 
-router.post("/resend-verification-code", async (req, res, next) => {
+router.post('/verify-email/:token', (req, res, next) => {
+  const { token } = req.params;
+
+  User.findOne({
+    verificationToken: token,
+    verificationTokenExpires: { $gt: Date.now() },
+  })
+    .then(user => {
+      if (!user) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid or expired verification token.',
+        });
+      }
+
+      user.isVerified = true;
+      user.verificationToken = undefined;
+      user.verificationTokenExpires = undefined;
+
+      return user.save().then(() => {
+        const payload = { user: { id: user.id } };
+        const jwtToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+        res.status(200).json({
+          success: true,
+          message: 'Email verified successfully!',
+          token: jwtToken,
+        });
+      });
+    })
+    .catch(error => {
+      console.error('Verification error:', error);
+      next(error);
+    });
+});
+
+router.post("/resend-verification-code", (req, res, next) => {
   const { email } = req.body;
 
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+  User.findOne({ email })
+    .then(user => {
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
-    if (user.isVerified) {
-      return res.status(400).json({ message: "Email already verified" });
-    }
+      if (user.isVerified) {
+        return res.status(400).json({ message: "Email already verified" });
+      }
 
-    const verificationToken = crypto.randomBytes(20).toString("hex");
-    const verificationTokenExpires = Date.now() + 3600000;
-    user.verificationToken = verificationToken;
-    user.verificationTokenExpires = verificationTokenExpires;
-    await user.save();
+      const verificationToken = crypto.randomBytes(20).toString("hex");
+      const verificationTokenExpires = Date.now() + 3600000;
+      user.verificationToken = verificationToken;
+      user.verificationTokenExpires = verificationTokenExpires;
 
-    const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
+      return user.save().then(() => {
+        const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
 
-    await transporter.sendMail({
-      to: user.email,
-      subject: "Email Verification",
-      html: `<h2>Email Verification</h2>
-             <p>Please click the link below to verify your email:</p>
-             <p><a href="${verificationUrl}">Verify Email</a></p>`,
+        return transporter.sendMail({
+          to: user.email,
+          subject: "Email Verification",
+          html: `<h2>Email Verification</h2>
+                 <p>Please click the link below to verify your email:</p>
+                 <p><a href="${verificationUrl}">Verify Email</a></p>`,
+        });
+      })
+      .then(() => {
+        res.json({ message: "New verification email sent successfully" });
+      })
+      .catch(error => {
+        console.error("Error resending verification code:", error);
+        next(error);
+      });
+    })
+    .catch(error => {
+      console.error("Error finding user:", error);
+      next(error);
     });
-
-    res.json({ message: "New verification email sent successfully" });
-  } catch (error) {
-    console.error("Error resending verification code:", error);
-    next(error); 
-  }
 });
 
-router.post("/login", loginValidator, async (req, res, next) => {
+router.post("/login", loginValidator, (req, res, next) => {
   const { email, password } = req.body;
 
-  try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ msg: "Invalid email or password" });
-    }
+  User.findOne({ email })
+    .then(user => {
+      if (!user) {
+        return res.status(400).json({ msg: "Invalid email or password" });
+      }
 
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: "Invalid email or password" });
-    }
+      return user.matchPassword(password).then(isMatch => {
+        if (!isMatch) {
+          return res.status(400).json({ msg: "Invalid email or password" });
+        }
 
-    const payload = { user: { id: user.id } };
-    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "7d",
+        const payload = { user: { id: user.id } };
+        const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
+        const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+        user.refreshToken = refreshToken;
+        return user.save().then(() => {
+          res.json({ accessToken, refreshToken });
+        });
+      });
+    })
+    .catch(err => {
+      console.error("Login error:", err);
+      next(err);
     });
-    const refreshToken = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
-
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    res.json({ accessToken, refreshToken });
-  } catch (err) {
-    console.error("Login error:", err);
-    next(err); 
-  }
 });
 
-router.post("/refresh-token", async (req, res, next) => {
+router.post("/refresh-token", (req, res, next) => {
   const { refreshToken } = req.body;
-  if (!refreshToken)
-    return res.status(400).json({ msg: "Refresh token required" });
+  if (!refreshToken) return res.status(400).json({ msg: "Refresh token required" });
 
-  try {
-    const user = await User.findOne({ refreshToken });
-    if (!user) {
-      return res.status(401).json({ msg: "Invalid refresh token" });
-    }
-
-    jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
-      if (err) {
+  User.findOne({ refreshToken })
+    .then(user => {
+      if (!user) {
         return res.status(401).json({ msg: "Invalid refresh token" });
       }
 
-      const payload = { user: { id: decoded.user.id } };
-      const newAccessToken = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: "7h",
-      });
+      jwt.verify(refreshToken, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).json({ msg: "Invalid refresh token" });
+        }
 
-      res.json({ accessToken: newAccessToken });
+        const payload = { user: { id: decoded.user.id } };
+        const newAccessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7h" });
+
+        res.json({ accessToken: newAccessToken });
+      });
+    })
+    .catch(err => {
+      console.error(err);
+      next(err);
     });
-  } catch (err) {
-    console.error(err);
-    next(err);
-  }
 });
 
-router.get("/current-user", auth, async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user._id).select('-password');
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: "User not found"
-      });
-    }
+router.get("/current-user", auth, (req, res, next) => {
+  User.findById(req.user._id).select('-password')
+    .then(user => {
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
 
-    res.json({
-      success: true,
-      data: user
+      res.json({ success: true, data: user });
+    })
+    .catch(error => {
+      console.error("Error fetching current user:", error);
+      next();
     });
-  } catch (error) {
-    console.error("Error fetching current user:", error);
-    next(error); 
-  }
 });
 
 router.get('/auth/google', (req, res, next) => {
   passport.authenticate('google', {
     scope: ['profile', 'email'],
-    prompt: 'select_account'
+    prompt: 'select_account',
   })(req, res, next);
 });
 
@@ -250,18 +255,17 @@ router.get('/google/callback', (req, res, next) => {
   })(req, res, next);
 });
 
-
-
-router.get("/profile", auth, async (req, res, next) => {
-  try {
-    const user = await User.findById(req.user.id).select("email");
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    res.json(user);
-  } catch (error) {
-    next(error); 
-  }
+router.get("/profile", auth, (req, res, next) => {
+  User.findById(req.user.id).select("email")
+    .then(user => {
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json(user);
+    })
+    .catch(error => {
+      next(error);
+    });
 });
 
 router.use((err, req, res, next) => {

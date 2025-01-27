@@ -42,11 +42,9 @@ app.get('/', (req, res) => {
 
 import usersRouter from './routes/users.js';  
 import todoRoute from './routes/todos.js'
-// import voteRoute from './routes/vote.js'
 
 app.use('/users', usersRouter); 
 app.use('/todos', todoRoute);
-// app.use('./vote', voteRoute)
 
 connectDB();
 
