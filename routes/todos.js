@@ -58,28 +58,19 @@ router.get("/api/todos/supervisor/:id", async (req, res) => {
       return res.status(400).json({ error: "Supervisor email is required" });
     }
 
-    // First, check if the todo exists by ID
-    const todoExists = await Todo.findById(id);
-
-    if (!todoExists) {
-      return res.status(404).json({ error: "Todo not found" });
-    }
-
-    // Find the todo assigned to the supervisor's email
     const todo = await Todo.findOne({
       _id: id,
-      assignedTo: email // ensure assignedTo stores supervisor's email or identifier
+      assignedTo: email
     });
 
     if (!todo) {
-      return res.status(404).json({ error: "Todo is not assigned to this supervisor" });
+      return res.status(404).json({ error: "Todo not found or not assigned to this supervisor" });
     }
 
     const { __v, ...safeData } = todo.toObject();
     res.status(200).json(safeData);
-
   } catch (err) {
-    console.error("Error fetching supervisor todo:", err);
+    console.error("Error in supervisor todo route:", err);
     res.status(500).json({ error: err.message });
   }
 });
