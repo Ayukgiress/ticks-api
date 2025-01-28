@@ -54,23 +54,61 @@ router.get("/api/todos/supervisor/:id", async (req, res) => {
     const { id } = req.params;
     const { email } = req.query;
 
+    console.log('Debug - Received request params:', {
+      todoId: id,
+      supervisorEmail: email
+    });
+
     if (!email) {
+      console.log('Debug - Missing email parameter');
       return res.status(400).json({ error: "Supervisor email is required" });
     }
 
+    // First try to find the todo without conditions to see if it exists at all
+    const todoExists = await Todo.findById(id);
+    console.log('Debug - Todo exists check:', {
+      exists: !!todoExists,
+      todoData: todoExists
+    });
+
+    // Then try to find it with the email condition
     const todo = await Todo.findOne({
       _id: id,
       assignedTo: email
     });
 
+    console.log('Debug - Todo search result:', {
+      found: !!todo,
+      assignedTo: todo?.assignedTo,
+      requestEmail: email,
+      matches: todo?.assignedTo === email
+    });
+
     if (!todo) {
-      return res.status(404).json({ error: "Todo not found or unauthorized" });
+      const reason = !todoExists 
+        ? "Todo ID not found in database"
+        : "Todo exists but not assigned to provided email";
+      
+      console.log('Debug - Todo not found reason:', reason);
+      return res.status(404).json({ 
+        error: "Todo not found or unauthorized",
+        debug: {
+          reason,
+          todoExists: !!todoExists,
+          emailProvided: email,
+          actualAssignee: todoExists?.assignedTo
+        }
+      });
     }
 
     const { __v, ...safeData } = todo.toObject();
+    console.log('Debug - Sending successful response:', safeData);
     res.status(200).json(safeData);
   } catch (err) {
-    console.error("Error fetching todo:", err);
+    console.error("Debug - Error in supervisor todo route:", {
+      error: err.message,
+      stack: err.stack
+    });
     res.status(500).json({ error: err.message });
   }
 });
