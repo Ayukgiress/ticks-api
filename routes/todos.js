@@ -58,24 +58,31 @@ router.get("/api/todos/supervisor/:id", async (req, res) => {
       return res.status(400).json({ error: "Supervisor email is required" });
     }
 
+    // Modified query to properly check assignedTo field
     const todo = await Todo.findOne({
       _id: id,
-      assignedTo: email
+      assignedTo: email.toLowerCase() // Add toLowerCase() for case-insensitive comparison
     });
 
     if (!todo) {
       return res.status(404).json({ error: "Todo not found or not assigned to this supervisor" });
     }
 
-    const { __v, ...safeData } = todo.toObject();
-    res.status(200).json(safeData);
+    // Add additional fields to the response
+    const todoResponse = {
+      ...todo.toObject(),
+      isAssignedToSupervisor: true,
+      supervisorEmail: email
+    };
+
+    delete todoResponse.__v; 
+    
+    res.status(200).json(todoResponse);
   } catch (err) {
     console.error("Error in supervisor todo route:", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "Failed to fetch todo. Please try again." });
   }
 });
-
-// Add new endpoint for supervisor to update todo status
 router.put("/api/todos/supervisor/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -86,7 +93,6 @@ router.put("/api/todos/supervisor/:id", async (req, res) => {
       return res.status(400).json({ error: "Supervisor email is required" });
     }
 
-    // Find and update the todo, ensuring it's assigned to the correct supervisor
     const updatedTodo = await Todo.findOneAndUpdate(
       {
         _id: id,
