@@ -42,9 +42,11 @@ app.get('/', (req, res) => {
 
 import usersRouter from './routes/users.js';  
 import todoRoute from './routes/todos.js'
+import supervisorRouter from './routes/supervisor.js';
 
 app.use('/users', usersRouter); 
 app.use('/todos', todoRoute);
+app.use('/supervisor', supervisorRouter);
 
 connectDB();
 
