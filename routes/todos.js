@@ -201,6 +201,11 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
       return res.status(404).json({ error: "Todo not found" });
     }
 
+    if (!todo.userId?.email) {
+      console.error("Missing recipient email address");
+      return res.status(400).json({ error: "Invalid recipient email address" });
+    }
+
     todo.comments.push({
       text,
       author: email,
@@ -218,12 +223,27 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
              <p>Comment: ${text}</p>`
     };
 
-    await transporter.sendMail(mailOptions);
+    if (!mailOptions.to || !mailOptions.from) {
+      throw new Error("Missing required email fields");
+    }
+
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (emailError) {
+      console.error("Failed to send email notification:", emailError);
+    }
 
     res.status(200).json(todo);
   } catch (err) {
     console.error("Error adding comment:", err);
     res.status(500).json({ error: err.message });
+    
+    if (err.code === 'EENVELOPE') {
+      console.error("Email configuration error:", {
+        hasTransporter: !!transporter,
+        emailUser: !!process.env.EMAIL_USER
+      });
+    }
   }
 });
 
