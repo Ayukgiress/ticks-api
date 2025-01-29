@@ -195,15 +195,21 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
     const todo = await Todo.findOne({
       _id: id,
       assignedTo: email.toLowerCase()
+    }).populate({
+      path: 'userId',
+      select: 'email' 
     });
 
     if (!todo) {
       return res.status(404).json({ error: "Todo not found" });
     }
 
-    if (!todo.userId?.email) {
-      console.error("Missing recipient email address");
-      return res.status(400).json({ error: "Invalid recipient email address" });
+    if (!todo.userId || !todo.userId.email) {
+      console.error("Cannot find todo creator's email", {
+        todoId: todo._id,
+        hasUserId: !!todo.userId
+      });
+      return res.status(400).json({ error: "Cannot notify todo creator" });
     }
 
     todo.comments.push({
@@ -216,36 +222,32 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: todo.userId.email,
+      to: todo.userId.email,  
       subject: 'New comment on your todo',
       text: `${email} commented on your todo: "${todo.title}"\n\nComment: ${text}`,
       html: `<p><strong>${email}</strong> commented on your todo: "${todo.title}"</p>
-             <p>Comment: ${text}</p>`
+             <p>Comment: ${text}</p>
+             <p>View todo: https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}</p>`
     };
-
-    if (!mailOptions.to || !mailOptions.from) {
-      throw new Error("Missing required email fields");
-    }
 
     try {
       await transporter.sendMail(mailOptions);
     } catch (emailError) {
-      console.error("Failed to send email notification:", emailError);
+      console.error("Failed to send email notification:", {
+        error: emailError.message,
+        todoId: todo._id,
+        recipientEmail: todo.userId.email,
+        senderEmail: process.env.EMAIL_USER
+      });
     }
 
     res.status(200).json(todo);
   } catch (err) {
     console.error("Error adding comment:", err);
     res.status(500).json({ error: err.message });
-    
-    if (err.code === 'EENVELOPE') {
-      console.error("Email configuration error:", {
-        hasTransporter: !!transporter,
-        emailUser: !!process.env.EMAIL_USER
-      });
-    }
   }
 });
+
 
 router.put("/api/public-todos/:id/complete", async (req, res) => {
   try {
