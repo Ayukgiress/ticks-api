@@ -50,7 +50,14 @@ const todoSchema = new mongoose.Schema({
   assignedTo: { 
     type: String, 
     default: null 
-  }
+  },
+  comments: [{
+    text: { type: String },
+    author: { type: String },
+    createdAt: { type: Date, default: Date.now }
+  }],
+  completedBy: { type: String, default: null },
+  completedAt: { type: Date, default: null }
 }, { 
   timestamps: true 
 });
