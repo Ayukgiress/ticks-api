@@ -26,13 +26,7 @@ const sendEmailNotification = async (email, todo) => {
   await transporter.sendMail(mailOptions);
 };
 
-const validateObjectId = (req, res, next) => {
-  const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ error: "Invalid todo ID format" });
-  }
-  next();
-};
+
 
 router.get("/api/todos/:userId", auth, async (req, res) => {
   try {
@@ -57,79 +51,9 @@ router.get("/api/todos/:userId", auth, async (req, res) => {
   }
 });
 
-router.get("/api/todos/supervisor/:id",  validateObjectId, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email } = req.query;
-
-    if (!email) {
-      return res.status(400).json({ error: "Supervisor email is required" });
-    }
-
-    const normalizedEmail = email.toLowerCase();
-    console.log(`Searching for todo ${id} assigned to ${normalizedEmail}`); 
-
-    const todo = await Todo.findOne({
-      _id: id,
-      assignedTo: normalizedEmail
-    });
-
-    if (!todo) {
-      console.log('Todo not found with criteria:', { id, assignedEmail: normalizedEmail });
-      return res.status(404).json({ 
-        error: "Todo not found or not assigned to this supervisor",
-        debugInfo: { searched: { id, email: normalizedEmail } }
-      });
-    }
-
-    const todoResponse = {
-      ...todo.toObject(),
-      isAssignedToSupervisor: true,
-      supervisorEmail: normalizedEmail
-    };
-
-    delete todoResponse.__v;
-    
-    res.status(200).json(todoResponse);
-  } catch (err) {
-    console.error("Error in supervisor todo route:", err);
-    res.status(500).json({ 
-      error: "Failed to fetch todo. Please try again.",
-      details: err.message 
-    });
-  }
-});
 
 
-router.put("/api/todos/supervisor/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email } = req.query;
-    const updates = req.body;
 
-    if (!email) {
-      return res.status(400).json({ error: "Supervisor email is required" });
-    }
-
-    const updatedTodo = await Todo.findOneAndUpdate(
-      {
-        _id: id,
-        assignedTo: email
-      },
-      updates,
-      { new: true }
-    );
-
-    if (!updatedTodo) {
-      return res.status(404).json({ error: "Todo not found or unauthorized" });
-    }
-
-    res.status(200).json(updatedTodo);
-  } catch (err) {
-    console.error("Error updating todo:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 
 router.get("/api/todos/detail/:id", auth, async (req, res) => {
@@ -233,6 +157,110 @@ router.delete("/api/todos/:id", auth, async (req, res) => {
 
     res.status(200).json({ message: "Todo deleted" });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+
+
+
+router.get("/api/public-todos/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.query; 
+
+    const todo = await Todo.findOne({
+      _id: id,
+      assignedTo: email.toLowerCase()
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
+
+    res.status(200).json(todo);
+  } catch (err) {
+    console.error("Error fetching todo:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/api/public-todos/:id/comment", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text, email } = req.body;
+
+    const todo = await Todo.findOne({
+      _id: id,
+      assignedTo: email.toLowerCase()
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
+
+    todo.comments.push({
+      text,
+      author: email,
+      createdAt: new Date()
+    });
+
+    await todo.save();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: todo.userId.email,
+      subject: 'New comment on your todo',
+      text: `${email} commented on your todo: "${todo.title}"\n\nComment: ${text}`,
+      html: `<p><strong>${email}</strong> commented on your todo: "${todo.title}"</p>
+             <p>Comment: ${text}</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json(todo);
+  } catch (err) {
+    console.error("Error adding comment:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/api/public-todos/:id/complete", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    const todo = await Todo.findOne({
+      _id: id,
+      assignedTo: email.toLowerCase()
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
+
+    todo.completed = true;
+    todo.completedBy = email;
+    todo.completedAt = new Date();
+
+    await todo.save();
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: todo.userId.email,
+      subject: 'Todo marked as complete',
+      text: `Your todo "${todo.title}" has been marked as complete by ${email}`,
+      html: `<p>Your todo "<strong>${todo.title}</strong>" has been marked as complete by ${email}.</p>
+             <p>Completed at: ${new Date().toLocaleString()}</p>`
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json(todo);
+  } catch (err) {
+    console.error("Error completing todo:", err);
     res.status(500).json({ error: err.message });
   }
 });
