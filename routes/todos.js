@@ -26,6 +26,14 @@ const sendEmailNotification = async (email, todo) => {
   await transporter.sendMail(mailOptions);
 };
 
+const validateObjectId = (req, res, next) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid todo ID format" });
+  }
+  next();
+};
+
 router.get("/api/todos/:userId", auth, async (req, res) => {
   try {
     const { userId } = req.params;
@@ -49,7 +57,7 @@ router.get("/api/todos/:userId", auth, async (req, res) => {
   }
 });
 
-router.get("/api/todos/supervisor/:id", async (req, res) => {
+router.get("/api/todos/supervisor/:id",  validateObjectId, async (req, res) => {
   try {
     const { id } = req.params;
     const { email } = req.query;
@@ -58,31 +66,41 @@ router.get("/api/todos/supervisor/:id", async (req, res) => {
       return res.status(400).json({ error: "Supervisor email is required" });
     }
 
-    // Modified query to properly check assignedTo field
+    const normalizedEmail = email.toLowerCase();
+    console.log(`Searching for todo ${id} assigned to ${normalizedEmail}`); 
+
     const todo = await Todo.findOne({
       _id: id,
-      assignedTo: email.toLowerCase() // Add toLowerCase() for case-insensitive comparison
+      assignedTo: normalizedEmail
     });
 
     if (!todo) {
-      return res.status(404).json({ error: "Todo not found or not assigned to this supervisor" });
+      console.log('Todo not found with criteria:', { id, assignedEmail: normalizedEmail });
+      return res.status(404).json({ 
+        error: "Todo not found or not assigned to this supervisor",
+        debugInfo: { searched: { id, email: normalizedEmail } }
+      });
     }
 
-    // Add additional fields to the response
     const todoResponse = {
       ...todo.toObject(),
       isAssignedToSupervisor: true,
-      supervisorEmail: email
+      supervisorEmail: normalizedEmail
     };
 
-    delete todoResponse.__v; 
+    delete todoResponse.__v;
     
     res.status(200).json(todoResponse);
   } catch (err) {
     console.error("Error in supervisor todo route:", err);
-    res.status(500).json({ error: "Failed to fetch todo. Please try again." });
+    res.status(500).json({ 
+      error: "Failed to fetch todo. Please try again.",
+      details: err.message 
+    });
   }
 });
+
+
 router.put("/api/todos/supervisor/:id", async (req, res) => {
   try {
     const { id } = req.params;
@@ -146,6 +164,10 @@ router.post("/api/todos", auth, async (req, res) => {
       completed: false,
       showSubtasks: req.body.subtodos && req.body.subtodos.length > 0,
     };
+    
+    if (todoData.assignedTo) {
+      todoData.assignedTo = todoData.assignedTo.toLowerCase();
+    }
 
     const newTodo = new Todo(todoData);
     await newTodo.save();
@@ -159,7 +181,6 @@ router.post("/api/todos", auth, async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
 
 router.put("/api/todos/:id", auth, async (req, res) => {
   try {
