@@ -1,62 +1,69 @@
-import createError from 'http-errors';  
-import express from 'express';  
-import path from 'path';  
-import cookieParser from 'cookie-parser';  
-import logger from 'morgan';  
-import connectDB from './config/dbconfig.js';
-import cors from 'cors';  
-import dotenv from 'dotenv';
-import passport from 'passport';
-import session from 'express-session';
-import initializePassport from './passport-setup.js';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-
+import createError from "http-errors";
+import express from "express";
+import path from "path";
+import cookieParser from "cookie-parser";
+import logger from "morgan";
+import connectDB from "./config/dbconfig.js";
+import cors from "cors";
+import dotenv from "dotenv";
+import passport from "passport";
+import session from "express-session";
+import initializePassport from "./passport-setup.js";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import io from "socket.io";
 
 const app = express();
 
+io.on("connection", (socket) => {
+  console.log("a user connected");
+  socket.emit("connection", "null");
+});
 
+dotenv.config();
 
+const port = process.env.PORT || 5000;
 
-dotenv.config();   
-
-const port = process.env.PORT || 5000; 
-
-app.use(logger('dev'));
+app.use(logger("dev"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-app.use(express.static(path.join(path.resolve(), 'public')));
+app.use(express.static(path.join(path.resolve(), "public")));
 
-app.use(cors({
-  origin: '*', 
-  methods: ['GET', 'POST', "DELETE", "PUT", "PATCH"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
+    credentials: true,
+  })
+);
 
-app.get('/', (req, res) => {
-  res.send('Welcome to the Fitness Tracker API!');
+app.get("/", (req, res) => {
+  res.send("Welcome to the Todo API!");
 });
 
-import usersRouter from './routes/users.js';  
-import todoRoute from './routes/todos.js'
+import usersRouter from "./routes/users.js";
+import todoRoute from "./routes/todos.js";
+import messageRoute from "./routes/message.js";
 
-app.use('/users', usersRouter); 
-app.use('/todos', todoRoute);
+
+app.use("/users", usersRouter);
+app.use("/todos", todoRoute);
+app.use("/message", messageRoute);
+
 
 connectDB();
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    secret: process.env.SESSION_SECRET || "your-secret-key",
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 
-    }
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 24 * 60 * 60 * 1000,
+    },
   })
 );
 
@@ -67,16 +74,16 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((err, req, res, next) => {  
-  console.error('Error details:', err); 
-  res.status(err.status || 500).json({  
-    error: {  
-      message: err.message,  
-      status: err.status || 500,  
-    },  
-  });  
+app.use((err, req, res, next) => {
+  console.error("Error details:", err);
+  res.status(err.status || 500).json({
+    error: {
+      message: err.message,
+      status: err.status || 500,
+    },
+  });
 });
 
-app.listen(port, () => console.log(`Server started on port ${port}`));  
+app.listen(port, () => console.log(`Server started on port ${port}`));
 
 export default app;

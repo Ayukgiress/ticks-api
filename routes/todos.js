@@ -227,7 +227,7 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
       text: `${email} commented on your todo: "${todo.title}"\n\nComment: ${text}`,
       html: `<p><strong>${email}</strong> commented on your todo: "${todo.title}"</p>
              <p>Comment: ${text}</p>
-             <p>View todo: https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}</p>`
+             <p>View todo: https://uptrack-phi.vercel.app/todos/${todo._id}</p>`
     };
 
     try {
