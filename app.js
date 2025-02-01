@@ -33,7 +33,7 @@ app.use(express.static(path.join(path.resolve(), "public")));
 
 app.use(
   cors({
-    origin: "*",
+    origin: "https://uptrack-phi.vercel.app",
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     credentials: true,
   })
