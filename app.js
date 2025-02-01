@@ -11,14 +11,14 @@ import session from "express-session";
 import initializePassport from "./passport-setup.js";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import io from "socket.io";
+// import io from "socket.io";
 
 const app = express();
 
-io.on("connection", (socket) => {
-  console.log("a user connected");
-  socket.emit("connection", "null");
-});
+// io.on("connection", (socket) => {
+//   console.log("a user connected");
+//   socket.emit("connection", "null");
+// });
 
 dotenv.config();
 
