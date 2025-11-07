@@ -8,16 +8,19 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
-    recieverId: {
+    receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
     text: {
-      type: String, 
+      type: String,
     },
     image: {
-      type: String, 
+      type: String,
+    },
+    voice: {
+      type: String, // File path to the voice file
     },
   },
   { timestamps: true }

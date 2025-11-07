@@ -11,14 +11,62 @@ import session from "express-session";
 import initializePassport from "./passport-setup.js";
 import fs from "fs";
 import { fileURLToPath } from "url";
-// import io from "socket.io";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const app = express();
 
-// io.on("connection", (socket) => {
-//   console.log("a user connected");
-//   socket.emit("connection", "null");
-// });
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:5174"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
+
+const onlineUsers = new Map();
+
+io.on("connection", (socket) => {
+  console.log("a user connected");
+
+  socket.on("join", (userId) => {
+    if (!userId) {
+      return;
+    }
+    socket.join(userId);
+    onlineUsers.set(socket.id, userId);
+    console.log(`User ${userId} joined room`);
+
+    // Emit updated online users list to all connected clients
+    const onlineUserIds = Array.from(new Set(onlineUsers.values()));
+    io.emit("getOnlineUsers", onlineUserIds);
+  });
+
+  socket.on("sendMessage", (message) => {
+    if (!message || !message.recieverId || !message.senderId) {
+      return;
+    }
+    const recieverRoom = message.recieverId.toString();
+    const senderRoom = message.senderId.toString();
+    io.to(recieverRoom).emit("newMessage", message);
+    io.to(senderRoom).emit("newMessage", message);
+  });
+
+  socket.on("disconnect", () => {
+    const userId = onlineUsers.get(socket.id);
+    if (userId) {
+      onlineUsers.delete(socket.id);
+      console.log(`user ${userId} disconnected`);
+
+      // Emit updated online users list to all connected clients
+      const onlineUserIds = Array.from(new Set(onlineUsers.values()));
+      io.emit("getOnlineUsers", onlineUserIds);
+      return;
+    }
+    console.log("user disconnected");
+  });
+});
 
 dotenv.config();
 
@@ -30,10 +78,11 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
 app.use(express.static(path.join(path.resolve(), "public")));
+app.use("/uploads", express.static(path.join(path.resolve(), "uploads")));
 
 app.use(
   cors({
-    origin: "https://uptrack-phi.vercel.app",
+    origin: ["http://localhost:5174"],
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     credentials: true,
   })
@@ -46,11 +95,15 @@ app.get("/", (req, res) => {
 import usersRouter from "./routes/users.js";
 import todoRoute from "./routes/todos.js";
 import messageRoute from "./routes/message.js";
+import projectRoute from "./routes/projects.js";
+import acceptInvitationRoute from "./routes/accept-invitation.js";
 
 
 app.use("/users", usersRouter);
 app.use("/todos", todoRoute);
 app.use("/message", messageRoute);
+app.use("/projects", projectRoute);
+app.use("/accept-invitation", acceptInvitationRoute);
 
 
 connectDB();
@@ -84,6 +137,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(port, () => console.log(`Server started on port ${port}`));
+server.listen(port, () => console.log(`Server started on port ${port}`));
 
+export { io };
 export default app;

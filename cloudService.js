@@ -6,6 +6,8 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+export default cloudinary;
+
 export const uploadToCloudService = async (filePath) => {
   return new Promise((resolve, reject) => {
     cloudinary.v2.uploader.upload(filePath, (error, result) => {

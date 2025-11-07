@@ -47,9 +47,14 @@ const todoSchema = new mongoose.Schema({
     ref: 'User', 
     required: true 
   },
-  assignedTo: { 
-    type: String, 
-    default: null 
+  assignedTo: {
+    type: String,
+    default: null
+  },
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null
   },
   comments: [{
     text: { type: String },

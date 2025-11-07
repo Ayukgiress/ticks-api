@@ -42,7 +42,7 @@ router.post("/register", registerValidator, (req, res, next) => {
       });
 
       return user.save().then(() => {
-        const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
+        const verificationUrl = `http://localhost:5174/verify-email/${verificationToken}`;
 
         return transporter.sendMail({
           to: user.email,
@@ -123,7 +123,7 @@ router.post("/resend-verification-code", (req, res, next) => {
       user.verificationTokenExpires = verificationTokenExpires;
 
       return user.save().then(() => {
-        const verificationUrl = `https://uptrack-phi.vercel.app/verify-email/${verificationToken}`;
+        const verificationUrl = `http://localhost:5174/verify-email/${verificationToken}`;
 
         return transporter.sendMail({
           to: user.email,
@@ -233,11 +233,11 @@ router.get('/google/callback', (req, res, next) => {
   }, (err, user, info) => {
     if (err) {
       console.error('Authentication error:', err);
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(err.message)}`);
+      return res.redirect(`http://localhost:5174/login?error=${encodeURIComponent(err.message)}`);
     }
 
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=authentication_failed`);
+      return res.redirect(`http://localhost:5174/login?error=authentication_failed`);
     }
 
     try {
@@ -247,10 +247,10 @@ router.get('/google/callback', (req, res, next) => {
         { expiresIn: '7d' }
       );
 
-      return res.redirect(`${process.env.FRONTEND_URL}/oauth-callback?token=${encodeURIComponent(token)}`);
+      return res.redirect(`http://localhost:5174/oauth-callback?token=${encodeURIComponent(token)}`);
     } catch (error) {
       console.error('Token creation error:', error);
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=token_creation_failed`);
+      return res.redirect(`http://localhost:5174/login?error=token_creation_failed`);
     }
   })(req, res, next);
 });

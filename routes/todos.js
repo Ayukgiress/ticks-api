@@ -1,12 +1,12 @@
 import express from "express";
 import Todo from "../models/todo.js";
 import auth from "../middleware/auth.js";
-import nodemailer from "nodemailer"; 
+import nodemailer from "nodemailer";
 
 const router = express.Router();
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail', 
+  service: 'gmail',
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -18,15 +18,28 @@ const sendEmailNotification = async (email, todo) => {
     from: process.env.EMAIL_USER,
     to: email,
     subject: 'You have been assigned a todo',
-    text: `You have been assigned a new task: ${todo.title}. View it here: https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}`,
+    text: `You have been assigned a new task: ${todo.title}. View it here: http://localhost:5174/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}`,
     html: `<p>You have been assigned a new task: <strong>${todo.title}</strong>.</p>
-           <p><a href="https://uptrack-phi.vercel.app/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}">View it here</a></p>`,
+           <p><a href="http://localhost:5174/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}">View it here</a></p>`,
   };
 
   await transporter.sendMail(mailOptions);
 };
 
+router.get("/api/todos/assigned/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
 
+    const todos = await Todo.find({
+      assignedTo: email.toLowerCase()
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(todos);
+  } catch (err) {
+    console.error("Error fetching assigned todos:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/api/todos/:userId", auth, async (req, res) => {
   try {
@@ -51,10 +64,20 @@ router.get("/api/todos/:userId", auth, async (req, res) => {
   }
 });
 
+router.get("/api/todos/assigned/:email", async (req, res) => {
+  try {
+    const { email } = req.params;
 
+    const todos = await Todo.find({
+      assignedTo: email.toLowerCase()
+    }).sort({ createdAt: -1 });
 
-
-
+    res.status(200).json(todos);
+  } catch (err) {
+    console.error("Error fetching assigned todos:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/api/todos/detail/:id", auth, async (req, res) => {
   try {
@@ -88,9 +111,25 @@ router.post("/api/todos", auth, async (req, res) => {
       completed: false,
       showSubtasks: req.body.subtodos && req.body.subtodos.length > 0,
     };
-    
+
     if (todoData.assignedTo) {
       todoData.assignedTo = todoData.assignedTo.toLowerCase();
+    }
+
+    // If projectId is provided, verify user can access the project
+    if (todoData.projectId) {
+      const Project = (await import("../models/project.js")).default;
+      const project = await Project.findById(todoData.projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      const canAccessProject = (project, userId) => {
+        return project.createdBy.toString() === userId.toString() ||
+               project.contributors.some(c => c.userId.toString() === userId.toString() && c.status === 'accepted');
+      };
+      if (!canAccessProject(project, req.user.id)) {
+        return res.status(401).json({ error: "Unauthorized to add tasks to this project" });
+      }
     }
 
     const newTodo = new Todo(todoData);
@@ -108,8 +147,8 @@ router.post("/api/todos", auth, async (req, res) => {
 
 router.put("/api/todos/:id", auth, async (req, res) => {
   try {
-    const { id } = req.params; 
-    const userId = req.user.id; 
+    const { id } = req.params;
+    const userId = req.user.id;
 
     const updatedTodo = await Todo.findOneAndUpdate(
       { _id: id, userId },
@@ -161,15 +200,10 @@ router.delete("/api/todos/:id", auth, async (req, res) => {
   }
 });
 
-
-
-
-
-
 router.get("/api/public-todos/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { email } = req.query; 
+    const { email } = req.query;
 
     const todo = await Todo.findOne({
       _id: id,
@@ -197,7 +231,7 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
       assignedTo: email.toLowerCase()
     }).populate({
       path: 'userId',
-      select: 'email' 
+      select: 'email'
     });
 
     if (!todo) {
@@ -222,12 +256,12 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: todo.userId.email,  
+      to: todo.userId.email,
       subject: 'New comment on your todo',
       text: `${email} commented on your todo: "${todo.title}"\n\nComment: ${text}`,
       html: `<p><strong>${email}</strong> commented on your todo: "${todo.title}"</p>
              <p>Comment: ${text}</p>
-             <p>View todo: https://uptrack-phi.vercel.app/todos/${todo._id}</p>`
+             <p>View todo: http://localhost:5174/todos/${todo._id}</p>`
     };
 
     try {
@@ -247,7 +281,6 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.put("/api/public-todos/:id/complete", async (req, res) => {
   try {
@@ -283,6 +316,32 @@ router.put("/api/public-todos/:id/complete", async (req, res) => {
     res.status(200).json(todo);
   } catch (err) {
     console.error("Error completing todo:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/api/public-todos/:id/subtask", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { subtaskIndex, email } = req.body;
+
+    const todo = await Todo.findOne({
+      _id: id,
+      assignedTo: email.toLowerCase()
+    });
+
+    if (!todo) {
+      return res.status(404).json({ error: "Todo not found" });
+    }
+
+    if (todo.subtodos && todo.subtodos[subtaskIndex]) {
+      todo.subtodos[subtaskIndex].completed = !todo.subtodos[subtaskIndex].completed;
+      await todo.save();
+    }
+
+    res.status(200).json(todo);
+  } catch (err) {
+    console.error("Error updating subtask:", err);
     res.status(500).json({ error: err.message });
   }
 });
