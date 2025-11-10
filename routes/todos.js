@@ -18,9 +18,9 @@ const sendEmailNotification = async (email, todo) => {
     from: process.env.EMAIL_USER,
     to: email,
     subject: 'You have been assigned a todo',
-    text: `You have been assigned a new task: ${todo.title}. View it here: http://localhost:5174/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}`,
+    text: `You have been assigned a new task: ${todo.title}. View it here: ${process.env.FRONTEND_URL}/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}`,
     html: `<p>You have been assigned a new task: <strong>${todo.title}</strong>.</p>
-           <p><a href="http://localhost:5174/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}">View it here</a></p>`,
+           <p><a href="${process.env.FRONTEND_URL}/supervisor/todos/${todo._id}?email=${encodeURIComponent(email)}">View it here</a></p>`,
   };
 
   await transporter.sendMail(mailOptions);
@@ -108,6 +108,7 @@ router.post("/api/todos", auth, async (req, res) => {
     const todoData = {
       ...req.body,
       userId: req.user.id,
+      createdBy: req.user.id,
       completed: false,
       showSubtasks: req.body.subtodos && req.body.subtodos.length > 0,
     };
@@ -135,7 +136,8 @@ router.post("/api/todos", auth, async (req, res) => {
     const newTodo = new Todo(todoData);
     await newTodo.save();
 
-    if (newTodo.assignedTo) {
+    // Send email notification if assigned to someone (not for personal tasks assigned to self)
+    if (newTodo.assignedTo && newTodo.assignedTo !== req.user.email.toLowerCase()) {
       await sendEmailNotification(newTodo.assignedTo, newTodo);
     }
 
@@ -261,7 +263,7 @@ router.post("/api/public-todos/:id/comment", async (req, res) => {
       text: `${email} commented on your todo: "${todo.title}"\n\nComment: ${text}`,
       html: `<p><strong>${email}</strong> commented on your todo: "${todo.title}"</p>
              <p>Comment: ${text}</p>
-             <p>View todo: http://localhost:5174/todos/${todo._id}</p>`
+             <p>View todo: ${process.env.FRONTEND_URL}/todos/${todo._id}</p>`
     };
 
     try {
@@ -290,6 +292,9 @@ router.put("/api/public-todos/:id/complete", async (req, res) => {
     const todo = await Todo.findOne({
       _id: id,
       assignedTo: email.toLowerCase()
+    }).populate({
+      path: 'userId',
+      select: 'email'
     });
 
     if (!todo) {
@@ -302,16 +307,29 @@ router.put("/api/public-todos/:id/complete", async (req, res) => {
 
     await todo.save();
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: todo.userId.email,
-      subject: 'Todo marked as complete',
-      text: `Your todo "${todo.title}" has been marked as complete by ${email}`,
-      html: `<p>Your todo "<strong>${todo.title}</strong>" has been marked as complete by ${email}.</p>
-             <p>Completed at: ${new Date().toLocaleString()}</p>`
-    };
+    // Only send email if the creator's email is available
+    if (todo.userId && todo.userId.email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: todo.userId.email,
+        subject: 'Todo marked as complete',
+        text: `Your todo "${todo.title}" has been marked as complete by ${email}`,
+        html: `<p>Your todo "<strong>${todo.title}</strong>" has been marked as complete by ${email}.</p>
+               <p>Completed at: ${new Date().toLocaleString()}</p>`
+      };
 
-    await transporter.sendMail(mailOptions);
+      try {
+        await transporter.sendMail(mailOptions);
+      } catch (emailError) {
+        console.error("Failed to send email notification:", {
+          error: emailError.message,
+          todoId: todo._id,
+          recipientEmail: todo.userId.email,
+          senderEmail: process.env.EMAIL_USER
+        });
+        // Don't fail the request if email fails
+      }
+    }
 
     res.status(200).json(todo);
   } catch (err) {

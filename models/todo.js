@@ -56,6 +56,16 @@ const todoSchema = new mongoose.Schema({
     ref: 'Project',
     default: null
   },
+  taskType: {
+    type: String,
+    enum: ['project', 'personal'],
+    default: 'project'
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   comments: [{
     text: { type: String },
     author: { type: String },

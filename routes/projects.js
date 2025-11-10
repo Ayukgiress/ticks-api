@@ -202,7 +202,7 @@ router.post("/api/projects/:projectId/invite", auth, async (req, res) => {
     await project.save();
 
     // Send invitation email
-    const invitationUrl = `http://localhost:5174/projects/${projectId}/accept-invitation?email=${encodeURIComponent(email)}`;
+    const invitationUrl = `${process.env.FRONTEND_URL}/projects/${projectId}/accept-invitation?email=${encodeURIComponent(email)}`;
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
