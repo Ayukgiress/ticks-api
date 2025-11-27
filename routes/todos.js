@@ -113,6 +113,23 @@ router.post("/api/todos", auth, async (req, res) => {
       showSubtasks: req.body.subtodos && req.body.subtodos.length > 0,
     };
 
+    const creatorEmail = req.user.email ? req.user.email.toLowerCase() : null;
+
+    if (todoData.dueDate) {
+      const dueDate = new Date(todoData.dueDate);
+      if (Number.isNaN(dueDate.getTime())) {
+        return res.status(400).json({ error: "Invalid due date" });
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDateStart = new Date(dueDate);
+      dueDateStart.setHours(0, 0, 0, 0);
+      if (dueDateStart < today) {
+        return res.status(400).json({ error: "Due date cannot be in the past" });
+      }
+      todoData.dueDate = dueDate;
+    }
+
     if (todoData.assignedTo) {
       todoData.assignedTo = todoData.assignedTo.toLowerCase();
     }
@@ -137,8 +154,10 @@ router.post("/api/todos", auth, async (req, res) => {
     await newTodo.save();
 
     // Send email notification if assigned to someone (not for personal tasks assigned to self)
-    if (newTodo.assignedTo && newTodo.assignedTo !== req.user.email.toLowerCase()) {
-      await sendEmailNotification(newTodo.assignedTo, newTodo);
+    if (newTodo.assignedTo && (!creatorEmail || newTodo.assignedTo !== creatorEmail)) {
+      sendEmailNotification(newTodo.assignedTo, newTodo).catch((emailError) => {
+        console.error("Failed to send email notification:", emailError.message);
+      });
     }
 
     res.status(201).json(newTodo);
@@ -151,6 +170,21 @@ router.put("/api/todos/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
+
+    if (req.body.dueDate) {
+      const dueDate = new Date(req.body.dueDate);
+      if (Number.isNaN(dueDate.getTime())) {
+        return res.status(400).json({ error: "Invalid due date" });
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDateStart = new Date(dueDate);
+      dueDateStart.setHours(0, 0, 0, 0);
+      if (dueDateStart < today) {
+        return res.status(400).json({ error: "Due date cannot be in the past" });
+      }
+      req.body.dueDate = dueDate;
+    }
 
     const updatedTodo = await Todo.findOneAndUpdate(
       { _id: id, userId },

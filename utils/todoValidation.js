@@ -8,7 +8,7 @@ const todoSchema = Joi.object({
     completed: Joi.boolean().optional(),
   })).optional(),
   priority: Joi.string().valid('low', 'medium', 'high').optional(),
-  dueDate: Joi.date().greater('now').optional(), 
+  dueDate: Joi.date().min('now').optional(), 
 });
 
 const validateTodo = (data) => {

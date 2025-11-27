@@ -82,7 +82,7 @@ app.use("/uploads", express.static(path.join(path.resolve(), "uploads")));
 
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL],
+    origin: [process.env.FRONTEND_URL, "https://taskydev.vercel.app"],
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     credentials: true,
   })
